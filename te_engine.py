@@ -276,6 +276,24 @@ class TestExecutiveEngine:
                     )
                     self.log(str(exc), level="ERROR")
                     raise
+                except Exception as exc:
+                    duration_s = time.perf_counter() - started_step
+                    self.emit(
+                        self._step_event(
+                            step,
+                            "Failed",
+                            "",
+                            self._format_bound(step.low),
+                            self._format_bound(step.high),
+                            self._format_duration(duration_s),
+                        )
+                    )
+                    self.log(
+                        f"Error inesperado en paso {step.line} ({step.command}): "
+                        f"{type(exc).__name__}: {exc}",
+                        level="ERROR",
+                    )
+                    raise
 
                 duration_s = time.perf_counter() - started_step
                 self.emit(
@@ -313,6 +331,13 @@ class TestExecutiveEngine:
             overall_status = "FAIL"
             self.emit({"type": "status", "value": "FAIL"})
             self.log(f"Error de ejecucion: {exc}", level="ERROR")
+        except Exception as exc:
+            overall_status = "FAIL"
+            self.emit({"type": "status", "value": "FAIL"})
+            self.log(
+                f"Error inesperado de ejecucion ({type(exc).__name__}): {exc}",
+                level="ERROR",
+            )
         finally:
             if bundle is not None:
                 try:

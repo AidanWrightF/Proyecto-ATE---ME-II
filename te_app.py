@@ -6,7 +6,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
-from instruments import InstrumentConfig
+from instruments import InstrumentConfig, SUPPORTED_SCOPE_MODELS, list_visa_resources as discover_visa_resources
 from te_engine import ExecutionContext, TestExecutiveEngine
 
 
@@ -43,6 +43,9 @@ class TEOperatorApp:
         self.uut_var = tk.StringVar()
         self.loop_var = tk.BooleanVar(value=False)
         self.mock_var = tk.BooleanVar(value=True)
+        self.scope_model_var = tk.StringVar(value="AUTO")
+        self.scope_resource_var = tk.StringVar()
+        self.generator_resource_var = tk.StringVar()
         self.status_text_var = tk.StringVar(value="READY")
 
     def _build_ui(self) -> None:
@@ -60,6 +63,7 @@ class TEOperatorApp:
     def _build_top_bar(self) -> None:
         top = ttk.Frame(self.root, padding=(10, 10))
         top.grid(row=0, column=0, sticky="ew")
+        top.columnconfigure(3, weight=1)
         top.columnconfigure(7, weight=1)
 
         ttk.Label(top, text="TP:").grid(row=0, column=0, sticky="w", padx=(0, 4))
@@ -83,6 +87,41 @@ class TEOperatorApp:
         )
         ttk.Label(top, textvariable=self.tp_file_var).grid(
             row=1, column=7, sticky="w", pady=(10, 0)
+        )
+
+        ttk.Label(top, text="Tipo scope:").grid(row=2, column=0, sticky="w", pady=(10, 0))
+        ttk.Combobox(
+            top,
+            textvariable=self.scope_model_var,
+            values=SUPPORTED_SCOPE_MODELS,
+            width=22,
+            state="readonly",
+        ).grid(row=2, column=1, sticky="w", pady=(10, 0))
+
+        ttk.Label(top, text="Scope VISA:").grid(row=2, column=2, sticky="w", padx=(10, 4), pady=(10, 0))
+        ttk.Entry(top, textvariable=self.scope_resource_var).grid(
+            row=2,
+            column=3,
+            columnspan=3,
+            sticky="ew",
+            pady=(10, 0),
+        )
+        ttk.Button(top, text="Listar VISA", command=self.list_visa_resources).grid(
+            row=2,
+            column=6,
+            columnspan=2,
+            padx=(10, 0),
+            pady=(10, 0),
+            sticky="ew",
+        )
+
+        ttk.Label(top, text="Generador VISA:").grid(row=3, column=0, sticky="w", pady=(10, 0))
+        ttk.Entry(top, textvariable=self.generator_resource_var).grid(
+            row=3,
+            column=1,
+            columnspan=7,
+            sticky="ew",
+            pady=(10, 0),
         )
 
     def _build_status_panel(self) -> None:
@@ -249,12 +288,30 @@ class TEOperatorApp:
         self._rebuild_sequence_table()
         self._append_log("Preparando nueva ejecucion.")
 
+        scope_resource = self.scope_resource_var.get().strip()
+        generator_resource = self.generator_resource_var.get().strip()
+        scope_model = self.scope_model_var.get().strip() or "AUTO"
+        if not self.mock_var.get():
+            if not scope_resource:
+                messagebox.showerror(
+                    "Instrumentos sin configurar",
+                    "En modo real debe completar Scope VISA. "
+                    "Use un recurso USB/ASRL como 'USB0::...::INSTR' o 'ASRL4::INSTR'. "
+                    "Generador VISA es opcional para TPs que solo miden el osciloscopio.",
+                )
+                return
+
         context = ExecutionContext(
             station_id=self.station_var.get().strip() or "ATE-UNI-01",
             operator_name=self.operator_var.get().strip() or "Operario",
             uut_serial=self.uut_var.get().strip(),
         )
-        instrument_config = InstrumentConfig(mock_mode=self.mock_var.get())
+        instrument_config = InstrumentConfig(
+            mock_mode=self.mock_var.get(),
+            scope_resource=scope_resource,
+            generator_resource=generator_resource,
+            scope_model=scope_model,
+        )
         loop_enabled = self.loop_var.get()
 
         self.run_thread = threading.Thread(
@@ -270,13 +327,15 @@ class TEOperatorApp:
         instrument_config: InstrumentConfig,
         loop_enabled: bool,
     ) -> None:
-        while not self.loop_stop_event.is_set():
-            result = self.engine.run(context=context, instrument_config=instrument_config)
-            if not loop_enabled:
-                break
-            if result.overall_status != "PASS":
-                break
-        self.event_queue.put({"type": "worker_finished"})
+        try:
+            while not self.loop_stop_event.is_set():
+                result = self.engine.run(context=context, instrument_config=instrument_config)
+                if not loop_enabled:
+                    break
+                if result.overall_status != "PASS":
+                    break
+        finally:
+            self.event_queue.put({"type": "worker_finished"})
 
     def toggle_pause(self) -> None:
         if not self.run_thread or not self.run_thread.is_alive():
@@ -299,6 +358,22 @@ class TEOperatorApp:
         self.loop_stop_event.set()
         self.engine.request_stop()
         self._append_log("Solicitud de abort enviada al motor.", level="ERROR")
+
+    def list_visa_resources(self) -> None:
+        try:
+            resources = discover_visa_resources()
+        except Exception as exc:
+            self._append_log(f"No se pudieron listar recursos VISA: {exc}", level="ERROR")
+            return
+
+        if not resources:
+            self._append_log("No se detectaron recursos VISA.", level="ERROR")
+            return
+
+        self._append_log("Recursos VISA detectados: " + ", ".join(resources))
+        if len(resources) == 1 and not self.scope_resource_var.get().strip():
+            self.scope_resource_var.set(resources[0])
+            self._append_log(f"Scope VISA sugerido: {resources[0]}")
 
     def _enqueue_event(self, event: dict) -> None:
         self.event_queue.put(event)

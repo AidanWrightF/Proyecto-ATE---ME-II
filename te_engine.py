@@ -7,7 +7,7 @@ from pathlib import Path
 import time
 from typing import Any, Callable, Dict, Optional
 
-from instruments import InstrumentBundle, InstrumentConfig, InstrumentError, open_instruments
+from instruments import InstrumentBundle, InstrumentError, open_instruments
 
 
 EventCallback = Callable[[dict], None]
@@ -169,8 +169,6 @@ class TestExecutiveEngine:
             "JMP": self._cmd_jmp,
             "TXT": self._cmd_txt,
             "WAIT": self._cmd_wait,
-            "DDS_SQUARE": self._cmd_dds_square,
-            "GEN_OUTPUT": self._cmd_gen_output,
             "OSC_AUTOSCALE": self._cmd_osc_autoscale,
             "OSC_MEASURE": self._cmd_osc_measure,
             "LOG": self._cmd_log,
@@ -202,7 +200,6 @@ class TestExecutiveEngine:
     def run(
         self,
         context: ExecutionContext,
-        instrument_config: Optional[InstrumentConfig] = None,
     ) -> RunResult:
         if not self.program:
             raise EngineError("No hay ningun TP cargado.")
@@ -234,10 +231,8 @@ class TestExecutiveEngine:
         )
 
         try:
-            bundle = open_instruments(instrument_config)
-            self.log(f"Modo de instrumentos: {'MOCK' if bundle.mock_mode else 'REAL'}")
+            bundle = open_instruments()
             self.log(f"Osciloscopio: {bundle.scope.identify()}")
-            self.log(f"Generador: {bundle.generator.identify()}")
 
             ip = 0
             while ip < len(self.program):
@@ -340,10 +335,6 @@ class TestExecutiveEngine:
             )
         finally:
             if bundle is not None:
-                try:
-                    bundle.generator.output(False)
-                except Exception:
-                    pass
                 try:
                     bundle.close()
                 except Exception as exc:
@@ -480,9 +471,8 @@ class TestExecutiveEngine:
     ) -> CommandResult:
         del step, context
         self.registers = {}
-        bundle.generator.reset()
         bundle.scope.reset()
-        return CommandResult(message="Instrumentos y registros reiniciados.")
+        return CommandResult(message="Osciloscopio y registros reiniciados.")
 
     def _cmd_load(
         self,
@@ -585,36 +575,6 @@ class TestExecutiveEngine:
             self._check_runtime_flags()
             time.sleep(0.05)
         return CommandResult(message=f"Espera completada: {seconds:.3f} s")
-
-    def _cmd_dds_square(
-        self,
-        step: TestStep,
-        bundle: InstrumentBundle,
-        context: ExecutionContext,
-    ) -> CommandResult:
-        del context
-        frequency_hz = float(self._resolve_value(step.arg1))
-        amplitude_vpp = float(self._resolve_value(step.arg2))
-        offset_v = float(self._resolve_value(step.arg3) or 0.0)
-        duty_cycle = float(self._resolve_value(step.arg4) or 50.0)
-        bundle.generator.set_square(frequency_hz, amplitude_vpp, offset_v, duty_cycle)
-        return CommandResult(
-            message=(
-                f"DDS configurado: square {frequency_hz:.6g} Hz, "
-                f"{amplitude_vpp:.6g} Vpp, offset {offset_v:.6g} V, duty {duty_cycle:.3g}%"
-            )
-        )
-
-    def _cmd_gen_output(
-        self,
-        step: TestStep,
-        bundle: InstrumentBundle,
-        context: ExecutionContext,
-    ) -> CommandResult:
-        del context
-        enabled = bool(self._resolve_value(step.arg1))
-        bundle.generator.output(enabled)
-        return CommandResult(message=f"Salida del generador {'ON' if enabled else 'OFF'}.")
 
     def _cmd_osc_autoscale(
         self,

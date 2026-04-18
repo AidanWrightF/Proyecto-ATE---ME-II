@@ -1,12 +1,29 @@
 from __future__ import annotations
 
-from pathlib import Path
 import queue
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
-from te_engine import ExecutionContext, TestExecutiveEngine
+from ate import ExecutionContext, TestExecutiveEngine
+from ate.config import PROJECT_ROOT
+from ate.engine.models import RunStatus, StepStatus
+
+_PROGRAMS_DIR = PROJECT_ROOT / "programs_tp" / "examples"
+
+_STATUS_COLORS: dict[str, str] = {
+    RunStatus.TESTING: "#d97706",
+    RunStatus.PASS: "#198754",
+    RunStatus.FAIL: "#dc3545",
+    RunStatus.ABORTED: "#dc3545",
+}
+_STATUS_LABELS: dict[str, str] = {
+    RunStatus.TESTING: "TESTING...",
+    RunStatus.PASS: "PASS",
+    RunStatus.FAIL: "FAIL",
+    RunStatus.ABORTED: "ABORTED",
+}
 
 
 class TEOperatorApp:
@@ -16,7 +33,6 @@ class TEOperatorApp:
         self.root.geometry("1280x840")
         self.root.minsize(1100, 740)
 
-        self.base_dir = Path(__file__).resolve().parent
         self.event_queue: queue.Queue = queue.Queue()
         self.engine = TestExecutiveEngine(
             event_callback=self._enqueue_event,
@@ -24,29 +40,17 @@ class TEOperatorApp:
         )
         self.run_thread: threading.Thread | None = None
         self.loop_stop_event = threading.Event()
-        self.current_program_path = self.base_dir / "tp_rigol_ch1_comp.csv"
+        self.current_program_path = _PROGRAMS_DIR / "tp_rigol_ch1_comp.csv"
         self.row_ids: dict[int, str] = {}
         self.paused = False
 
-        self._build_variables()
         self._build_ui()
         self._load_default_program()
         self.root.after(100, self._process_events)
 
-    def _build_variables(self) -> None:
-        self.tp_name_var = tk.StringVar(value="TP no cargado")
-        self.tp_version_var = tk.StringVar(value="0.0")
-        self.tp_file_var = tk.StringVar(value=self.current_program_path.name)
-        self.station_var = tk.StringVar(value="ATE-UNI-01")
-        self.operator_var = tk.StringVar(value="Operario")
-        self.uut_var = tk.StringVar()
-        self.loop_var = tk.BooleanVar(value=False)
-        self.status_text_var = tk.StringVar(value="READY")
-
     def _build_ui(self) -> None:
-        self.root.configure(bg="#dfe4ea")
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(3, weight=1)
+        self.root.rowconfigure(3, weight=3)
         self.root.rowconfigure(4, weight=1)
 
         self._build_top_bar()
@@ -56,96 +60,84 @@ class TEOperatorApp:
         self._build_log()
 
     def _build_top_bar(self) -> None:
-        top = ttk.Frame(self.root, padding=(10, 10))
-        top.grid(row=0, column=0, sticky="ew")
-        top.columnconfigure(7, weight=1)
+        frame = ttk.Frame(self.root, padding=(10, 8))
+        frame.grid(row=0, column=0, sticky="ew")
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
+        frame.columnconfigure(5, weight=1)
 
-        ttk.Label(top, text="TP:").grid(row=0, column=0, sticky="w", padx=(0, 4))
-        ttk.Label(top, textvariable=self.tp_name_var, width=28).grid(row=0, column=1, sticky="w")
-        ttk.Label(top, text="Version:").grid(row=0, column=2, sticky="w", padx=(10, 4))
-        ttk.Label(top, textvariable=self.tp_version_var, width=8).grid(row=0, column=3, sticky="w")
-        ttk.Label(top, text="Estacion:").grid(row=0, column=4, sticky="w", padx=(10, 4))
-        ttk.Entry(top, textvariable=self.station_var, width=16).grid(row=0, column=5, sticky="w")
-        ttk.Label(top, text="Operario:").grid(row=0, column=6, sticky="w", padx=(10, 4))
-        ttk.Entry(top, textvariable=self.operator_var, width=18).grid(row=0, column=7, sticky="w")
+        ttk.Label(frame, text="Estacion:").grid(row=0, column=0, sticky="w")
+        self.station_var = tk.StringVar(value="ATE-UNI-01")
+        ttk.Entry(frame, textvariable=self.station_var, width=18).grid(row=0, column=1, sticky="ew", padx=(4, 16))
 
-        ttk.Label(top, text="Codigo / Serie UUT:").grid(row=1, column=0, sticky="w", pady=(10, 0))
-        uut_entry = ttk.Entry(top, textvariable=self.uut_var, width=44)
-        uut_entry.grid(row=1, column=1, columnspan=3, sticky="ew", pady=(10, 0))
-        uut_entry.focus_set()
+        ttk.Label(frame, text="Operario:").grid(row=0, column=2, sticky="w")
+        self.operator_var = tk.StringVar(value="Operario")
+        ttk.Entry(frame, textvariable=self.operator_var, width=18).grid(row=0, column=3, sticky="ew", padx=(4, 16))
 
-        ttk.Checkbutton(top, text="Loop", variable=self.loop_var).grid(row=1, column=4, sticky="w", pady=(10, 0))
-        ttk.Button(top, text="Cargar TP", command=self.load_program_dialog).grid(
-            row=1, column=5, padx=(10, 4), pady=(10, 0), sticky="ew"
-        )
-        ttk.Label(top, textvariable=self.tp_file_var).grid(
-            row=1, column=6, columnspan=2, sticky="w", pady=(10, 0)
-        )
+        ttk.Label(frame, text="N/S UUT:").grid(row=0, column=4, sticky="w")
+        self.uut_var = tk.StringVar()
+        ttk.Entry(frame, textvariable=self.uut_var, width=18).grid(row=0, column=5, sticky="ew", padx=(4, 16))
+
+        ttk.Button(frame, text="Cargar TP...", command=self.load_program_dialog).grid(row=0, column=6, padx=4)
+
+        self.loop_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frame, text="Loop", variable=self.loop_var).grid(row=0, column=7, padx=(8, 0))
 
     def _build_status_panel(self) -> None:
-        self.status_frame = tk.Frame(self.root, bg="#6c757d", height=160)
-        self.status_frame.grid(row=1, column=0, sticky="nsew", padx=10)
-        self.status_frame.grid_propagate(False)
-        self.status_frame.columnconfigure(0, weight=1)
-        self.status_frame.rowconfigure(0, weight=1)
+        frame = ttk.LabelFrame(self.root, text="Test Program", padding=(10, 6))
+        frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 4))
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
+        frame.columnconfigure(5, weight=1)
 
+        self.tp_name_var = tk.StringVar(value="—")
+        self.tp_version_var = tk.StringVar(value="—")
+        self.tp_file_var = tk.StringVar(value="—")
+
+        ttk.Label(frame, text="Nombre:").grid(row=0, column=0, sticky="w")
+        ttk.Label(frame, textvariable=self.tp_name_var, font=("Segoe UI", 10, "bold")).grid(row=0, column=1, sticky="w", padx=(4, 24))
+
+        ttk.Label(frame, text="Version:").grid(row=0, column=2, sticky="w")
+        ttk.Label(frame, textvariable=self.tp_version_var).grid(row=0, column=3, sticky="w", padx=(4, 24))
+
+        ttk.Label(frame, text="Archivo:").grid(row=0, column=4, sticky="w")
+        ttk.Label(frame, textvariable=self.tp_file_var, foreground="#0d6efd").grid(row=0, column=5, sticky="w", padx=4)
+
+    def _build_controls(self) -> None:
+        outer = ttk.Frame(self.root, padding=(10, 4))
+        outer.grid(row=2, column=0, sticky="ew")
+        outer.columnconfigure(3, weight=1)
+
+        self.status_frame = tk.Frame(outer, bg="#6c757d", width=200, height=44)
+        self.status_frame.grid(row=0, column=0, padx=(0, 16))
+        self.status_frame.pack_propagate(False)
+        self.status_text_var = tk.StringVar(value="READY")
         self.status_label = tk.Label(
             self.status_frame,
             textvariable=self.status_text_var,
             bg="#6c757d",
             fg="white",
-            font=("Segoe UI", 34, "bold"),
+            font=("Segoe UI", 14, "bold"),
         )
-        self.status_label.grid(row=0, column=0, sticky="nsew")
+        self.status_label.pack(expand=True)
 
-    def _build_controls(self) -> None:
-        controls = ttk.Frame(self.root, padding=(10, 10))
-        controls.grid(row=2, column=0, sticky="ew")
-
-        self.start_button = tk.Button(
-            controls,
-            text="START",
-            width=12,
-            bg="#198754",
-            fg="white",
-            font=("Segoe UI", 12, "bold"),
-            command=self.start_test,
-        )
-        self.start_button.pack(side="left", padx=(0, 8))
-
-        self.pause_button = tk.Button(
-            controls,
-            text="PAUSE",
-            width=12,
-            bg="#ffc107",
-            fg="black",
-            font=("Segoe UI", 12, "bold"),
-            command=self.toggle_pause,
-        )
-        self.pause_button.pack(side="left", padx=(0, 8))
-
-        self.abort_button = tk.Button(
-            controls,
-            text="STOP / ABORT",
-            width=14,
-            bg="#dc3545",
-            fg="white",
-            font=("Segoe UI", 12, "bold"),
-            command=self.abort_test,
-        )
-        self.abort_button.pack(side="left")
+        ttk.Button(outer, text="START", width=12, command=self.start_test).grid(row=0, column=1, padx=4)
+        self.pause_button = ttk.Button(outer, text="PAUSE", width=12, command=self.toggle_pause)
+        self.pause_button.grid(row=0, column=2, padx=4)
+        ttk.Button(outer, text="ABORT", width=12, command=self.abort_test).grid(row=0, column=3, padx=4, sticky="w")
 
     def _build_table(self) -> None:
-        frame = ttk.LabelFrame(self.root, text="Secuencia de pruebas", padding=(8, 8))
-        frame.grid(row=3, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        frame = ttk.LabelFrame(self.root, text="Secuencia de Test", padding=(6, 4))
+        frame.grid(row=3, column=0, sticky="nsew", padx=10, pady=(4, 4))
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
-        columns = ("line", "name", "status", "measured", "low", "high", "unit", "duration")
-        self.tree = ttk.Treeview(frame, columns=columns, show="headings", height=12)
+        columns = ["line", "name", "status", "measured", "low", "high", "unit", "duration"]
+        self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="none")
+
         headings = {
-            "line": "#",
-            "name": "Nombre del Test",
+            "line": "Linea",
+            "name": "Nombre del Paso",
             "status": "Estado",
             "measured": "Valor Medido",
             "low": "Limite Inferior",
@@ -194,7 +186,7 @@ class TEOperatorApp:
     def load_program_dialog(self) -> None:
         selected = filedialog.askopenfilename(
             title="Seleccionar Test Program",
-            initialdir=str(self.base_dir),
+            initialdir=str(_PROGRAMS_DIR),
             filetypes=[("CSV", "*.csv"), ("Todos", "*.*")],
         )
         if selected:
@@ -224,7 +216,7 @@ class TEOperatorApp:
                 values=(
                     step.line,
                     step.name,
-                    "Pending",
+                    StepStatus.PENDING,
                     "",
                     step.low,
                     step.high,
@@ -245,7 +237,7 @@ class TEOperatorApp:
         self.loop_stop_event.clear()
         self.paused = False
         self.pause_button.configure(text="PAUSE")
-        self._set_status("TESTING...", "#d97706")
+        self._set_status(_STATUS_LABELS[RunStatus.TESTING], _STATUS_COLORS[RunStatus.TESTING])
         self._rebuild_sequence_table()
         self._append_log("Preparando nueva ejecucion.")
 
@@ -263,17 +255,13 @@ class TEOperatorApp:
         )
         self.run_thread.start()
 
-    def _worker_run(
-        self,
-        context: ExecutionContext,
-        loop_enabled: bool,
-    ) -> None:
+    def _worker_run(self, context: ExecutionContext, loop_enabled: bool) -> None:
         try:
             while not self.loop_stop_event.is_set():
                 result = self.engine.run(context=context)
                 if not loop_enabled:
                     break
-                if result.overall_status != "PASS":
+                if result.overall_status != RunStatus.PASS:
                     break
         finally:
             self.event_queue.put({"type": "worker_finished"})
@@ -289,12 +277,12 @@ class TEOperatorApp:
             self._append_log("Prueba en pausa.")
         else:
             self.pause_button.configure(text="PAUSE")
-            self._set_status("TESTING...", "#d97706")
+            self._set_status(_STATUS_LABELS[RunStatus.TESTING], _STATUS_COLORS[RunStatus.TESTING])
             self._append_log("Prueba reanudada.")
 
     def abort_test(self) -> None:
         if not self.run_thread or not self.run_thread.is_alive():
-            self._set_status("ABORTED", "#dc3545")
+            self._set_status(_STATUS_LABELS[RunStatus.ABORTED], _STATUS_COLORS[RunStatus.ABORTED])
             return
         self.loop_stop_event.set()
         self.engine.request_stop()
@@ -326,19 +314,7 @@ class TEOperatorApp:
 
         if event_type == "status":
             status = event.get("value", "READY")
-            colors = {
-                "TESTING": "#d97706",
-                "PASS": "#198754",
-                "FAIL": "#dc3545",
-                "ABORTED": "#dc3545",
-            }
-            labels = {
-                "TESTING": "TESTING...",
-                "PASS": "PASS",
-                "FAIL": "FAIL",
-                "ABORTED": "ABORTED",
-            }
-            self._set_status(labels.get(status, status), colors.get(status, "#6c757d"))
+            self._set_status(_STATUS_LABELS.get(status, status), _STATUS_COLORS.get(status, "#6c757d"))
             return
 
         if event_type == "log":
@@ -369,24 +345,17 @@ class TEOperatorApp:
             return
 
         if event_type == "run_complete":
-            overall = event.get("overall_status", "FAIL")
-            if overall == "PASS":
-                self._set_status("PASS", "#198754")
-            elif overall == "FAIL":
-                self._set_status("FAIL", "#dc3545")
-            else:
-                self._set_status("ABORTED", "#dc3545")
+            overall = event.get("overall_status", RunStatus.FAIL)
+            self._set_status(_STATUS_LABELS.get(overall, overall), _STATUS_COLORS.get(overall, "#6c757d"))
             self._append_log(
                 f"Ejecucion completada. Resultado={overall}. Duracion total={event.get('duration_s', 0)} s"
             )
             return
 
-        if event_type == "paused":
-            return
-
-        if event_type == "worker_finished":
-            self.pause_button.configure(text="PAUSE")
-            self.paused = False
+        if event_type in ("paused", "worker_finished"):
+            if event_type == "worker_finished":
+                self.pause_button.configure(text="PAUSE")
+                self.paused = False
             return
 
     def _set_status(self, text: str, bg: str) -> None:
@@ -394,22 +363,9 @@ class TEOperatorApp:
         self.status_frame.configure(bg=bg)
         self.status_label.configure(bg=bg)
 
-    def _append_log(self, message: str, level: str = "INFO", timestamp: str | None = None) -> None:
-        timestamp = timestamp or "LOG"
+    def _append_log(self, message: str, level: str = "INFO", timestamp: str = "LOG") -> None:
         line = f"[{timestamp}] [{level}] {message}\n"
         self.log_text.configure(state="normal")
         self.log_text.insert("end", line)
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
-
-
-def main() -> None:
-    root = tk.Tk()
-    ttk.Style().theme_use("clam")
-    app = TEOperatorApp(root)
-    del app
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main()

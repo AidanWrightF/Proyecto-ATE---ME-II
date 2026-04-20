@@ -1,6 +1,3 @@
 # Python cache
 __pycache__/
-# Archivos de datos de ejemplo
-tp_ejemplo_*
-# Carpetas de salida o docs
-documentacion/
+

@@ -1,1 +1,2 @@
 pyvisa
+pyvisa-py   # backend puro-Python para pyvisa (alternativa a NI-VISA)

@@ -5,8 +5,10 @@ Ejecuta programas de test definidos en CSV, controla un osciloscopio RIGOL DS120
 
 ## Requisitos
 
-- Python 3.10+
-- Drivers NI-VISA o pyvisa-py instalados en el sistema
+- **Python 3.10+** con `tkinter` incluido (en Linux: `sudo apt install python3-tk`)
+- **Backend VISA** (elegir uno):
+  - NI-VISA: drivers del sistema de National Instruments (no se instala con pip)
+  - `pyvisa-py`: backend puro-Python incluido en `requirements.txt`
 
 ```bash
 pip install -r requirements.txt

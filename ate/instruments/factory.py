@@ -19,6 +19,7 @@ def _build_scope() -> RigolDS1000ZEOscilloscope:
     visa = VisaInstrument(RIGOL_SCOPE_RESOURCE, timeout_ms=RIGOL_TIMEOUT_MS)
     try:
         identity = visa.query("*IDN?")
+        # Verificar identidad previene operar sobre el instrumento equivocado si la dirección VISA apunta a otro equipo.
         if "RIGOL" not in identity.upper():
             raise InstrumentError(
                 f"El recurso configurado no corresponde a un osciloscopio RIGOL. '*IDN?' devolvio: {identity}"

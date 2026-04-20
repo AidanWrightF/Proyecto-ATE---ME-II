@@ -44,6 +44,7 @@ class RigolDS1000ZEOscilloscope:
 
     @staticmethod
     def _normalize_channel(channel: str) -> str:
+        # El protocolo SCPI del RIGOL exige la forma larga "CHANnelN"; "CHAN1" es solo para legibilidad en el CSV.
         channel = channel.strip().upper()
         if channel.startswith("CHAN"):
             suffix = "".join(ch for ch in channel if ch.isdigit())

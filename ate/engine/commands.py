@@ -127,7 +127,7 @@ def cmd_wait(
     deadline = time.perf_counter() + seconds
     while time.perf_counter() < deadline:
         engine._check_runtime_flags()
-        time.sleep(0.05)
+        time.sleep(0.05)  # 50 ms entre sondeos para detectar pausa/abort sin quemar CPU
     return CommandResult(message=f"Espera completada: {seconds:.3f} s")
 
 

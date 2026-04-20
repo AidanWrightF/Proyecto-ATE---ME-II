@@ -33,6 +33,7 @@ class TEOperatorApp:
         self.root.geometry("1280x840")
         self.root.minsize(1100, 740)
 
+        # Puente thread-safe entre el hilo del engine y el hilo de la GUI (tkinter no es thread-safe).
         self.event_queue: queue.Queue = queue.Queue()
         self.engine = TestExecutiveEngine(
             event_callback=self._enqueue_event,
@@ -46,7 +47,7 @@ class TEOperatorApp:
 
         self._build_ui()
         self._load_default_program()
-        self.root.after(100, self._process_events)
+        self.root.after(100, self._process_events)  # sondea la cola cada 100 ms desde el hilo de la UI
 
     def _build_ui(self) -> None:
         self.root.columnconfigure(0, weight=1)
@@ -251,7 +252,7 @@ class TEOperatorApp:
         self.run_thread = threading.Thread(
             target=self._worker_run,
             args=(context, loop_enabled),
-            daemon=True,
+            daemon=True,  # el hilo se destruye automáticamente al cerrar la ventana
         )
         self.run_thread.start()
 
@@ -294,7 +295,7 @@ class TEOperatorApp:
     def _prompt_operator(self, message: str) -> bool:
         response_queue: queue.Queue = queue.Queue(maxsize=1)
         self.event_queue.put({"type": "prompt", "message": message, "response_queue": response_queue})
-        return bool(response_queue.get())
+        return bool(response_queue.get())  # bloquea el hilo del engine hasta que la UI resuelva el diálogo
 
     def _process_events(self) -> None:
         try:

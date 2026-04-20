@@ -27,6 +27,7 @@ def load_test_program(path: str | Path) -> tuple[ProgramMetadata, list[TestStep]
     if not csv_lines:
         raise EngineError(f"El archivo TP esta vacio: {path}")
 
+    # Se reconstruye un buffer virtual porque las líneas de metadatos (#) ya fueron extraídas y no deben llegar al DictReader.
     reader = csv.DictReader(io.StringIO("".join(csv_lines)))
     required = {"line", "name", "command", "arg1", "arg2", "arg3", "arg4", "low", "high", "unit"}
     if not reader.fieldnames or set(reader.fieldnames) != required:
@@ -57,6 +58,7 @@ def load_test_program(path: str | Path) -> tuple[ProgramMetadata, list[TestStep]
             )
         )
 
+    # El CSV admite filas desordenadas; el orden de ejecución lo determina el número de línea.
     steps.sort(key=lambda item: item.line)
     line_numbers = [step.line for step in steps]
     if len(line_numbers) != len(set(line_numbers)):

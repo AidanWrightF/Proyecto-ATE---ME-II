@@ -25,7 +25,7 @@ class EngineError(RuntimeError):
 class StepFailure(EngineError):
     def __init__(self, message: str, measured: str = "") -> None:
         super().__init__(message)
-        self.measured = measured
+        self.measured = measured  # valor ya formateado como str para mostrarlo directamente en la tabla de la UI
 
 
 class OperatorAbort(EngineError):

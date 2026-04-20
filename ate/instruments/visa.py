@@ -31,6 +31,7 @@ class VisaInstrument:
         return str(self._instrument.query(command)).strip()
 
     def wait_opc(self) -> None:
+        # *OPC? actúa como barrera de sincronización: el instrumento responde "1" solo cuando completó la operación anterior.
         self.query("*OPC?")
 
     def close(self) -> None:

@@ -36,7 +36,7 @@ class TestExecutiveEngine:
         self.prompt_handler = prompt_handler or (lambda message: True)
         self.metadata = ProgramMetadata()
         self.program: list[TestStep] = []
-        self._line_index: dict[int, int] = {}
+        self._line_index: dict[int, int] = {}  # mapea número de línea del TP a índice en `program` para saltos JMP/IF en O(1)
         self.registers: dict[str, Any] = {}
         self._paused = False
         self._stop_requested = False
@@ -266,6 +266,7 @@ class TestExecutiveEngine:
         }
 
     def _check_runtime_flags(self) -> None:
+        # Spin-loop en intervalos de 100 ms para no quemar CPU mientras la prueba está en pausa.
         while self._paused:
             if self._stop_requested:
                 raise OperatorAbort("Se recibio ABORT mientras la prueba estaba en pausa.")
@@ -290,6 +291,7 @@ class TestExecutiveEngine:
         if upper in {"OFF", "FALSE", "NO"}:
             return False
         try:
+            # Heurística: si el token contiene '.', 'e' o 'E' se asume float; de lo contrario int; si falla, se retorna como str.
             if any(mark in token for mark in (".", "e", "E")):
                 return float(token)
             return int(token)

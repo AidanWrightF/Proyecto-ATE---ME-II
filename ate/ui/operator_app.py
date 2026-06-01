@@ -160,6 +160,10 @@ class TEOperatorApp:
             self.tree.heading(column, text=headings[column])
             self.tree.column(column, width=widths[column], stretch=column == "name", anchor="center")
 
+        self.tree.tag_configure(StepStatus.PASSED, background="#198754", foreground="white")
+        self.tree.tag_configure(StepStatus.FAILED, background="#dc3545", foreground="white")
+        self.tree.tag_configure(StepStatus.RUNNING, background="#d97706", foreground="white")
+
         tree_scroll = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scroll.set)
         self.tree.grid(row=0, column=0, sticky="nsew")
@@ -325,12 +329,15 @@ class TEOperatorApp:
         if event_type == "step":
             line = event.get("line")
             if line in self.row_ids:
+                status = event.get("status", "")
+                tag = status if status in (StepStatus.PASSED, StepStatus.FAILED, StepStatus.RUNNING) else ""
                 self.tree.item(
                     self.row_ids[line],
+                    tags=(tag,) if tag else (),
                     values=(
                         line,
                         event.get("name", ""),
-                        event.get("status", ""),
+                        status,
                         event.get("measured", ""),
                         event.get("low", ""),
                         event.get("high", ""),

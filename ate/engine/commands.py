@@ -151,13 +151,7 @@ def cmd_osc_measure(
     channel = step.arg2 or "CHAN1"
     register_name = step.arg3 or f"REG_{measurement}"
 
-    try:
-        raw = bundle.scope.measure(measurement, channel)
-        value = float(raw)
-    except (ValueError, TypeError) as exc:
-        raise InstrumentError(
-            f"El osciloscopio devolvio un valor no numerico para {measurement} en {channel}: {exc}"
-        ) from exc
+    value = bundle.scope.measure(measurement, channel)
 
     if value >= _RIGOL_NO_VALUE:
         raise InstrumentError(
@@ -181,6 +175,32 @@ def cmd_log(
     return CommandResult(message=step.arg1 or step.name)
 
 
+def cmd_osc_slope(
+    _engine: TestExecutiveEngine,
+    step: TestStep,
+    bundle: InstrumentBundle,
+    _context: ExecutionContext,
+) -> CommandResult:
+    slope = (step.arg1 or "").strip().upper()
+    bundle.scope.set_trigger_slope(slope)
+    label = bundle.scope._SLOPE_LABELS.get(slope, slope)
+    return CommandResult(message=f"Flanco de disparo: {label}")
+
+
+def cmd_osc_timescale(
+    _engine: TestExecutiveEngine,
+    step: TestStep,
+    bundle: InstrumentBundle,
+    _context: ExecutionContext,
+) -> CommandResult:
+    try:
+        scale = float(step.arg1)
+    except (ValueError, TypeError) as exc:
+        raise EngineError(f"OSC_TIMESCALE: arg1 debe ser un numero (s/div): {exc}") from exc
+    bundle.scope.set_timescale(scale)
+    return CommandResult(message=f"Base de tiempo: {scale:.3E} s/div")
+
+
 def cmd_end(
     _engine: TestExecutiveEngine,
     _step: TestStep,
@@ -201,6 +221,8 @@ COMMAND_DISPATCH = {
     "WAIT": cmd_wait,
     "OSC_AUTOSCALE": cmd_osc_autoscale,
     "OSC_MEASURE": cmd_osc_measure,
+    "OSC_TIMESCALE": cmd_osc_timescale,
+    "OSC_SLOPE": cmd_osc_slope,
     "LOG": cmd_log,
     "END": cmd_end,
 }

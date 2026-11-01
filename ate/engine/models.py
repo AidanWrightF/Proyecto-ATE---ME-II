@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 class StepStatus:
-    PENDING = "Pending"
-    RUNNING = "Running"
     PASSED = "Passed"
     FAILED = "Failed"
 
 
 class RunStatus:
-    TESTING = "TESTING"
     PASS = "PASS"
     FAIL = "FAIL"
     ABORTED = "ABORTED"
@@ -41,13 +38,6 @@ class ProgramMetadata:
 
 
 @dataclass
-class ExecutionContext:
-    station_id: str
-    operator_name: str
-    uut_serial: str
-
-
-@dataclass
 class TestStep:
     line: int
     name: str
@@ -71,8 +61,24 @@ class CommandResult:
 
 
 @dataclass
+class StepRecord:
+    # Resultado de un paso ejecutado, con todos los campos ya formateados como str
+    # para volcarlos directamente al reporte de texto.
+    line: int
+    name: str
+    command: str
+    measured: str
+    low: str
+    high: str
+    unit: str
+    status: str
+    duration: str
+
+
+@dataclass
 class RunResult:
     overall_status: str
     started_at: float
     finished_at: float
     registers: Dict[str, Any]
+    steps: List[StepRecord] = field(default_factory=list)

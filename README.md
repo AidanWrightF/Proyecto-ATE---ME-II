@@ -1,7 +1,9 @@
 # Test Executive — RIGOL DS1202Z-E
 
 Aplicación de test automatizado para Medidas Electrónicas II.  
-Ejecuta programas de test definidos en CSV, controla un osciloscopio RIGOL DS1202Z-E vía VISA y muestra los resultados en tiempo real.
+Ejecuta programas de test definidos en CSV, controla un osciloscopio RIGOL DS1202Z-E vía VISA y entrega los resultados en un reporte de texto imprimible.
+
+La interfaz del operario es deliberadamente mínima: solo un **selector de Test Program** y una **barra de progreso** que se pone **verde (PASS)** o **roja (FAIL)** al terminar. El operario no pausa, aborta ni reinicia la secuencia: esas acciones las decide el propio TP (p. ej. el comando `END`). Los errores y mensajes de depuración van a la **consola**, no a la pantalla.
 
 ## Requisitos
 
@@ -26,6 +28,10 @@ O, si el paquete está instalado:
 ```bash
 ate
 ```
+
+El operario elige un TP del desplegable y pulsa **START**. Al finalizar, se abre
+automáticamente un reporte `.txt` (en `reports/`) con el resultado y el detalle
+de cada paso, listo para imprimir (Ctrl+P) o enviar.
 
 ## Configuración del instrumento
 
@@ -75,19 +81,21 @@ line,name,command,arg1,arg2,arg3,arg4,low,high,unit
 ```
 Code_TE/
 ├── ate/
-│   ├── config.py          # Constantes de hardware y PROJECT_ROOT
-│   ├── main.py            # Punto de entrada
+│   ├── config.py          # Rutas, estación y constantes de hardware
+│   ├── main.py            # Punto de entrada (configura logging a consola)
 │   ├── ui/
-│   │   └── operator_app.py
+│   │   └── operator_app.py # UI mínima: selector de TP + barra de progreso
 │   ├── engine/
 │   │   ├── models.py      # Clases de datos y excepciones
 │   │   ├── loader.py      # Parser de CSV
 │   │   ├── runtime.py     # Motor de ejecución
-│   │   └── commands.py    # Implementación de comandos
+│   │   ├── commands.py    # Implementación de comandos
+│   │   └── report.py      # Generación del reporte de texto
 │   └── instruments/
 │       ├── visa.py        # Comunicación VISA
 │       ├── rigol_scope.py # Driver del osciloscopio
 │       └── factory.py     # Inicialización de instrumentos
-└── programs_tp/
-    └── examples/          # Programas de test de ejemplo
+├── programs_tp/
+│   └── examples/          # Programas de test de ejemplo
+└── reports/               # Reportes .txt generados (ignorado por git)
 ```

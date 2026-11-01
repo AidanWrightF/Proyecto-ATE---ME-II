@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -11,12 +12,12 @@ from .loader import load_test_program
 from .models import (
     CommandResult,
     EngineError,
-    ExecutionContext,
     OperatorAbort,
     ProgramMetadata,
     RunResult,
     RunStatus,
     StepFailure,
+    StepRecord,
     StepStatus,
     TestStep,
 )
@@ -24,6 +25,8 @@ from .models import (
 
 EventCallback = Callable[[dict], None]
 PromptHandler = Callable[[str], bool]
+
+logger = logging.getLogger("ate")
 
 
 class TestExecutiveEngine:
@@ -38,115 +41,48 @@ class TestExecutiveEngine:
         self.program: list[TestStep] = []
         self._line_index: dict[int, int] = {}  # mapea número de línea del TP a índice en `program` para saltos JMP/IF en O(1)
         self.registers: dict[str, Any] = {}
-        self._paused = False
-        self._stop_requested = False
         self._dispatch = dict(COMMAND_DISPATCH)
 
     def load_program(self, path: str | Path) -> ProgramMetadata:
         self.metadata, self.program = load_test_program(path)
         self._line_index = {step.line: index for index, step in enumerate(self.program)}
-        self.emit(
-            {
-                "type": "program_loaded",
-                "metadata": {
-                    "name": self.metadata.name,
-                    "version": self.metadata.version,
-                    "path": self.metadata.path,
-                },
-            }
-        )
         return self.metadata
 
-    def request_stop(self) -> None:
-        self._stop_requested = True
-
-    def set_paused(self, paused: bool) -> None:
-        self._paused = paused
-        self.emit({"type": "paused", "paused": paused})
-
-    def run(self, context: ExecutionContext) -> RunResult:
+    def run(self) -> RunResult:
         if not self.program:
             raise EngineError("No hay ningun TP cargado.")
 
         started_at = time.time()
         self.registers = {}
-        self._paused = False
-        self._stop_requested = False
+        records: list[StepRecord] = []
         bundle: InstrumentBundle | None = None
         overall_status = RunStatus.FAIL
-        self.emit(
-            {
-                "type": "run_started",
-                "context": {
-                    "station_id": context.station_id,
-                    "operator_name": context.operator_name,
-                    "uut_serial": context.uut_serial,
-                },
-                "metadata": {
-                    "name": self.metadata.name,
-                    "version": self.metadata.version,
-                },
-            }
-        )
-        self.emit({"type": "status", "value": RunStatus.TESTING})
-        self.log(
-            f"Inicio de prueba. TP={self.metadata.name} v{self.metadata.version} "
-            f"| Estacion={context.station_id} | Operario={context.operator_name} | UUT={context.uut_serial or 'N/A'}"
-        )
+        total = len(self.program)
+
+        self.log(f"Inicio de prueba. TP={self.metadata.name} v{self.metadata.version}")
+        self.emit({"type": "progress", "current": 0, "total": total})
 
         try:
             bundle = open_instruments()
             self.log(f"Osciloscopio: {bundle.scope.identify()}")
 
             ip = 0
-            while ip < len(self.program):
-                self._check_runtime_flags()
+            while ip < total:
                 step = self.program[ip]
                 started_step = time.perf_counter()
-                self.emit(self._step_event(step, StepStatus.RUNNING, "", "", "", ""))
 
                 try:
-                    step_result = self._execute_step(step, bundle, context)
+                    step_result = self._execute_step(step, bundle)
                 except StepFailure as exc:
-                    duration_s = time.perf_counter() - started_step
-                    self.emit(
-                        self._step_event(
-                            step,
-                            StepStatus.FAILED,
-                            exc.measured,
-                            self._format_bound(step.low),
-                            self._format_bound(step.high),
-                            self._format_duration(duration_s),
-                        )
-                    )
+                    records.append(self._record(step, StepStatus.FAILED, exc.measured, time.perf_counter() - started_step))
                     self.log(str(exc), level="ERROR")
                     raise
                 except OperatorAbort as exc:
-                    duration_s = time.perf_counter() - started_step
-                    self.emit(
-                        self._step_event(
-                            step,
-                            StepStatus.FAILED,
-                            "",
-                            self._format_bound(step.low),
-                            self._format_bound(step.high),
-                            self._format_duration(duration_s),
-                        )
-                    )
+                    records.append(self._record(step, StepStatus.FAILED, "", time.perf_counter() - started_step))
                     self.log(str(exc), level="ERROR")
                     raise
                 except Exception as exc:
-                    duration_s = time.perf_counter() - started_step
-                    self.emit(
-                        self._step_event(
-                            step,
-                            StepStatus.FAILED,
-                            "",
-                            self._format_bound(step.low),
-                            self._format_bound(step.high),
-                            self._format_duration(duration_s),
-                        )
-                    )
+                    records.append(self._record(step, StepStatus.FAILED, "", time.perf_counter() - started_step))
                     self.log(
                         f"Error inesperado en paso {step.line} ({step.command}): "
                         f"{type(exc).__name__}: {exc}",
@@ -155,15 +91,8 @@ class TestExecutiveEngine:
                     raise
 
                 duration_s = time.perf_counter() - started_step
-                self.emit(
-                    self._step_event(
-                        step,
-                        step_result.status,
-                        self._format_measured(step_result.measured),
-                        self._format_bound(step.low),
-                        self._format_bound(step.high),
-                        self._format_duration(duration_s),
-                    )
+                records.append(
+                    self._record(step, step_result.status, self._format_measured(step_result.measured), duration_s)
                 )
 
                 if step_result.message:
@@ -174,29 +103,22 @@ class TestExecutiveEngine:
                     ip = self._resolve_jump(step_result.jump_to)
                 else:
                     ip += 1
+                self.emit({"type": "progress", "current": ip, "total": total})
 
             overall_status = RunStatus.PASS
-            self.emit({"type": "status", "value": RunStatus.PASS})
             self.log("Prueba finalizada con resultado PASS.")
         except StepFailure:
             overall_status = RunStatus.FAIL
-            self.emit({"type": "status", "value": RunStatus.FAIL})
             self.log("Prueba finalizada con resultado FAIL.", level="ERROR")
         except OperatorAbort:
             overall_status = RunStatus.ABORTED
-            self.emit({"type": "status", "value": RunStatus.ABORTED})
             self.log("Prueba abortada por el operador.", level="ERROR")
         except (InstrumentError, EngineError, ValueError) as exc:
             overall_status = RunStatus.FAIL
-            self.emit({"type": "status", "value": RunStatus.FAIL})
             self.log(f"Error de ejecucion: {exc}", level="ERROR")
         except Exception as exc:
             overall_status = RunStatus.FAIL
-            self.emit({"type": "status", "value": RunStatus.FAIL})
-            self.log(
-                f"Error inesperado de ejecucion ({type(exc).__name__}): {exc}",
-                level="ERROR",
-            )
+            self.log(f"Error inesperado de ejecucion ({type(exc).__name__}): {exc}", level="ERROR")
         finally:
             if bundle is not None:
                 try:
@@ -205,74 +127,42 @@ class TestExecutiveEngine:
                     self.log(f"Advertencia al cerrar instrumentos: {exc}", level="ERROR")
 
         finished_at = time.time()
-        run_result = RunResult(
+        self.emit({"type": "progress", "current": total, "total": total})
+        return RunResult(
             overall_status=overall_status,
             started_at=started_at,
             finished_at=finished_at,
             registers=dict(self.registers),
+            steps=records,
         )
-        self.emit(
-            {
-                "type": "run_complete",
-                "overall_status": overall_status,
-                "duration_s": round(finished_at - started_at, 3),
-                "registers": dict(self.registers),
-            }
-        )
-        return run_result
 
     def emit(self, event: dict) -> None:
         self.event_callback(event)
 
     def log(self, message: str, level: str = "INFO") -> None:
-        self.emit(
-            {
-                "type": "log",
-                "level": level,
-                "message": message,
-                "timestamp": time.strftime("%H:%M:%S"),
-            }
-        )
+        # El log va a la consola (el operario no la ve); nunca a la UI.
+        if level == "ERROR":
+            logger.error(message)
+        else:
+            logger.info(message)
 
-    def _execute_step(
-        self,
-        step: TestStep,
-        bundle: InstrumentBundle,
-        context: ExecutionContext,
-    ) -> CommandResult:
+    def _execute_step(self, step: TestStep, bundle: InstrumentBundle) -> CommandResult:
         if step.command not in self._dispatch:
             raise EngineError(f"Instruccion no soportada: {step.command}")
-        return self._dispatch[step.command](self, step, bundle, context)
+        return self._dispatch[step.command](self, step, bundle)
 
-    def _step_event(
-        self,
-        step: TestStep,
-        status: str,
-        measured: str,
-        low: str,
-        high: str,
-        duration: str,
-    ) -> dict:
-        return {
-            "type": "step",
-            "line": step.line,
-            "name": step.name,
-            "status": status,
-            "measured": measured,
-            "low": low,
-            "high": high,
-            "unit": step.unit,
-            "duration": duration,
-        }
-
-    def _check_runtime_flags(self) -> None:
-        # Spin-loop en intervalos de 100 ms para no quemar CPU mientras la prueba está en pausa.
-        while self._paused:
-            if self._stop_requested:
-                raise OperatorAbort("Se recibio ABORT mientras la prueba estaba en pausa.")
-            time.sleep(0.1)
-        if self._stop_requested:
-            raise OperatorAbort("Se recibio ABORT por parte del operador.")
+    def _record(self, step: TestStep, status: str, measured: str, duration_s: float) -> StepRecord:
+        return StepRecord(
+            line=step.line,
+            name=step.name,
+            command=step.command,
+            measured=measured,
+            low=self._format_bound(step.low),
+            high=self._format_bound(step.high),
+            unit=step.unit,
+            status=status,
+            duration=self._format_duration(duration_s),
+        )
 
     def _resolve_jump(self, target_line: int) -> int:
         if target_line not in self._line_index:

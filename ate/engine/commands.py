@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from ..instruments import InstrumentBundle, InstrumentError
 
-from .models import CommandResult, EngineError, ExecutionContext, OperatorAbort, TestStep
+from .models import CommandResult, EngineError, OperatorAbort, TestStep
 
 if TYPE_CHECKING:
     from .runtime import TestExecutiveEngine
@@ -18,7 +18,6 @@ def cmd_reset(
     engine: TestExecutiveEngine,
     _step: TestStep,
     bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     engine.registers = {}
     bundle.scope.reset()
@@ -29,7 +28,6 @@ def cmd_load(
     engine: TestExecutiveEngine,
     step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     if not step.arg1:
         raise EngineError("LOAD requiere arg1 como nombre de registro.")
@@ -42,7 +40,6 @@ def cmd_sum(
     engine: TestExecutiveEngine,
     step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     if not step.arg3:
         raise EngineError("SUM requiere arg3 como registro destino.")
@@ -55,7 +52,6 @@ def cmd_comp(
     engine: TestExecutiveEngine,
     step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     if not step.arg3:
         raise EngineError("COMP requiere arg3 como registro destino.")
@@ -68,7 +64,6 @@ def cmd_if(
     engine: TestExecutiveEngine,
     step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     left = engine._resolve_value(step.arg1)
     operator = step.arg2.strip()
@@ -98,7 +93,6 @@ def cmd_jmp(
     engine: TestExecutiveEngine,
     step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     target = int(engine._resolve_value(step.arg1))
     return CommandResult(jump_to=target, message=f"Salto incondicional a linea {target}.")
@@ -108,7 +102,6 @@ def cmd_txt(
     engine: TestExecutiveEngine,
     step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     message = step.arg1 or step.name or "Confirme para continuar."
     accepted = engine.prompt_handler(message)
@@ -121,13 +114,9 @@ def cmd_wait(
     engine: TestExecutiveEngine,
     step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     seconds = float(engine._resolve_value(step.arg1) or 0.0)
-    deadline = time.perf_counter() + seconds
-    while time.perf_counter() < deadline:
-        engine._check_runtime_flags()
-        time.sleep(0.05)  # 50 ms entre sondeos para detectar pausa/abort sin quemar CPU
+    time.sleep(seconds)
     return CommandResult(message=f"Espera completada: {seconds:.3f} s")
 
 
@@ -135,7 +124,6 @@ def cmd_osc_autoscale(
     _engine: TestExecutiveEngine,
     _step: TestStep,
     bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     bundle.scope.autoscale()
     return CommandResult(message="Osciloscopio en autoscale.")
@@ -145,7 +133,6 @@ def cmd_osc_measure(
     engine: TestExecutiveEngine,
     step: TestStep,
     bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     measurement = step.arg1 or "VPP"
     channel = step.arg2 or "CHAN1"
@@ -170,7 +157,6 @@ def cmd_log(
     _engine: TestExecutiveEngine,
     step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     return CommandResult(message=step.arg1 or step.name)
 
@@ -179,7 +165,6 @@ def cmd_osc_slope(
     _engine: TestExecutiveEngine,
     step: TestStep,
     bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     slope = (step.arg1 or "").strip().upper()
     bundle.scope.set_trigger_slope(slope)
@@ -191,7 +176,6 @@ def cmd_osc_timescale(
     _engine: TestExecutiveEngine,
     step: TestStep,
     bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     try:
         scale = float(step.arg1)
@@ -205,7 +189,6 @@ def cmd_end(
     _engine: TestExecutiveEngine,
     _step: TestStep,
     _bundle: InstrumentBundle,
-    _context: ExecutionContext,
 ) -> CommandResult:
     return CommandResult(stop_program=True, message="Fin de programa.")
 

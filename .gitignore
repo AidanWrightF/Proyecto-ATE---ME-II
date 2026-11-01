@@ -1,3 +1,6 @@
 # Python cache
 __pycache__/
 
+# Reportes generados en cada ejecucion
+reports/
+

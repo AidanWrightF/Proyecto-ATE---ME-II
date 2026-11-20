@@ -1,17 +1,21 @@
-from __future__ import annotations
-
 from pathlib import Path
 
-# Raíz del proyecto (Code_TE/). Referencia central para localizar recursos.
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+RAIZ = Path(__file__).resolve().parent.parent
+CARPETA_PROGRAMAS = RAIZ / "programas_tp"
+CARPETA_REPORTES = RAIZ / "reportes"
+LOGO = RAIZ / "ate" / "logo.png"
 
-# Directorios de recursos. Centralizados aquí para que ninguna capa los hardcodee.
-PROGRAMS_DIR = PROJECT_ROOT / "programs_tp" / "examples"
-REPORTS_DIR = PROJECT_ROOT / "reports"
+# Identificación de la estación que aparece en el reporte.
+ESTACION = "ATE-UNI-01"
 
-# Identificacion de la estacion para el reporte (no se pide al operario).
-STATION_ID = "ATE-UNI-01"
+# VID 0x1AB1, PID 0x0517 y número de serie del osciloscopio. Si se cambia el equipo, se cambia esta línea.
+RECURSO_OSCILOSCOPIO = "USB0::0x1AB1::0x0517::DS1ZE243207925::INSTR"
 
-# VID 0x1AB1, PID 0x0517 y número de serie identifican al osciloscopio físico; si se reemplaza el equipo, solo se actualiza esta línea.
-RIGOL_SCOPE_RESOURCE = "USB0::0x1AB1::0x0517::DS1ZE243207986::INSTR"
-RIGOL_TIMEOUT_MS = 10000
+# VID 0x1AB1 y PID 0x0642 del generador DG1022Z (serie DG1000Z), conectado a otro puerto USB.
+# Vacío: el TE usa el primer DG1000Z que encuentra; con más de uno, poner acá el recurso completo.
+RECURSO_GENERADOR = ""
+
+TIMEOUT_MS = 10000
+
+# Tiempo durante el cual el osciloscopio acumula adquisiciones en OSC_MEASURE_STAT.
+SEGUNDOS_ESTADISTICA = 3

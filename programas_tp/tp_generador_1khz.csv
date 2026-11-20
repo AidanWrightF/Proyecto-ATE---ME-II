@@ -1,0 +1,131 @@
+# TP_NAME: Verificacion generador RIGOL DG1022Z - cuadrada 1 kHz
+# TP_VERSION: 1.0
+# DUT: generador RIGOL DG1022Z; salida CH1 al CH1 del osciloscopio con el cable BNC-BNC (sin sonda); el TE configura el generador por USB
+# ESPECIFICACIONES: DG1000Z User's Guide, cap. 5: frecuencia +-1 ppm; amplitud +-(1 % + 1 mV); offset +-(1 % + 5 mV + 0,5 % de la amplitud); asimetria 1 % del periodo + 5 ns; flancos < 10 ns y sobrepico <= 5 % (tipicos, 1 Vpp)
+# INCERTIDUMBRE DEL OSCILOSCOPIO (DS1202Z-E): base de tiempo +-25 ppm; contador 0,01 Hz a 1 kHz; ganancia DC +-3 % del fondo de escala; 8 bits; tiempo de subida propio 1,75 ns
+# CRITERIO: limite = especificacion del manual + incertidumbre del osciloscopio (lineas 30 a 490)
+# FLANCOS: a 100 kHz y 1 Vpp (condiciones del manual); limite = raiz(10^2 + 1,75^2) ns + 1 ns (una muestra a 1 GSa/s) = 11,2 ns
+line,name,command,arg1,arg2,arg3,arg4,low,high,unit
+10,Reiniciar instrumentos,RESET,,,,,,,
+20,Conectar generador,TXT,"Conecte la salida CH1 del generador al CH1 del osciloscopio con el cable BNC-BNC (sin sonda). El generador debe estar encendido desde hace al menos 30 minutos. Presione OK.",,,,,,
+30,Frecuencia de prueba,LOAD,F_SET,1000,,,,,
+40,Amplitud de prueba,LOAD,A_SET,3,,,,,
+50,Offset de prueba,LOAD,OFS_SET,1.5,,,,,
+60,Exactitud de frecuencia del manual (ppm),LOAD,ESP_F_PPM,1,,,,,
+70,Exactitud de la base de tiempo del osciloscopio (ppm),LOAD,OSC_F_PPM,25,,,,,
+80,Resolucion del contador del osciloscopio,LOAD,OSC_F_RES,0.01,,,,,
+90,Tiempo de flanco maximo aceptado,LOAD,T_FLANCO_MAX,1.12E-08,,,,,
+100,Sobrepico maximo del manual (%),LOAD,ESP_SOBREPICO,5,,,,,
+110,Tolerancia de frecuencia en ppm,SUM,ESP_F_PPM,OSC_F_PPM,TOL_F_PPM,,,,ppm
+120,F_SET por tolerancia en ppm,MUL,F_SET,TOL_F_PPM,TOL_F_E6,,,,
+130,Tolerancia por exactitud,DIV,TOL_F_E6,1000000,TOL_F_EXACT,,,,Hz
+140,Tolerancia de frecuencia total,SUM,TOL_F_EXACT,OSC_F_RES,TOL_F,,,,Hz
+150,Frecuencia minima,COMP,F_SET,TOL_F,F_MIN,,,,Hz
+160,Frecuencia maxima,SUM,F_SET,TOL_F,F_MAX,,,,Hz
+170,Escala vertical (senal en 6 div),DIV,A_SET,6,V_DIV,,,,V
+180,Fondo de escala (8 div),MUL,V_DIV,8,V_FS,,,,V
+190,Incertidumbre del osciloscopio (3 % del fondo de escala),MUL,V_FS,0.03,INC_V,,,,V
+200,Amplitud: 1 % del valor,MUL,A_SET,0.01,ESP_A1,,,,V
+210,Amplitud: exactitud del manual,SUM,ESP_A1,0.001,ESP_A,,,,V
+220,Tolerancia de amplitud,SUM,ESP_A,INC_V,TOL_A,,,,V
+230,Amplitud minima,COMP,A_SET,TOL_A,A_MIN,,,,V
+240,Amplitud maxima,SUM,A_SET,TOL_A,A_MAX,,,,V
+250,Offset: 1 % del valor,MUL,OFS_SET,0.01,ESP_O1,,,,V
+260,Offset: 0.5 % de la amplitud,MUL,A_SET,0.005,ESP_O2,,,,V
+270,Offset: suma de terminos,SUM,ESP_O1,ESP_O2,ESP_O12,,,,V
+280,Offset: exactitud del manual,SUM,ESP_O12,0.005,ESP_O,,,,V
+290,Tolerancia de offset,SUM,ESP_O,INC_V,TOL_O,,,,V
+300,Offset minimo,COMP,OFS_SET,TOL_O,O_MIN,,,,V
+310,Offset maximo,SUM,OFS_SET,TOL_O,O_MAX,,,,V
+320,Base de tiempo 200 us/div,LOAD,T_DIV,0.0002,,,,,
+330,Asimetria: 5 ns en % del periodo,MUL,F_SET,0.0000005,ESP_D_NS,,,,%
+340,Asimetria del manual (%),SUM,ESP_D_NS,1,ESP_D,,,,%
+350,Resolucion de un flanco (1/100 div) en %,MUL,T_DIV,F_SET,INC_D1,,,,%
+360,Incertidumbre del ciclo de trabajo (2 flancos),MUL,INC_D1,2,INC_D,,,,%
+370,Tolerancia de ciclo de trabajo,SUM,ESP_D,INC_D,TOL_D,,,,%
+380,Ciclo de trabajo minimo,COMP,50,TOL_D,D_MIN,,,,%
+390,Ciclo de trabajo maximo,SUM,50,TOL_D,D_MAX,,,,%
+400,Frecuencia para flancos (condicion del manual),LOAD,F_FL,100000,,,,,
+410,Amplitud para flancos (condicion del manual),LOAD,A_FL,1,,,,,
+420,Offset para flancos,LOAD,OFS_FL,0.5,,,,,
+430,Base de tiempo para flancos 20 ns/div,LOAD,T_DIV_FL,2E-08,,,,,
+440,Escala vertical para flancos (senal en 5 div),DIV,A_FL,5,V_DIV_FL,,,,V
+450,Escalon del conversor (8 bits en 8 div),MUL,V_DIV_FL,0.03125,LSB_FL,,,,V
+460,Dos escalones por 100,MUL,LSB_FL,200,INC_SOBRE_V,,,,
+470,Incertidumbre del sobrepico,DIV,INC_SOBRE_V,A_FL,INC_SOBRE,,,,%
+480,Sobrepico maximo aceptado,SUM,ESP_SOBREPICO,INC_SOBRE,SOBREPICO_MAX,,,,%
+490,Offset vertical para 1 kHz,MUL,OFS_SET,-1,V_OFFSET,,,,V
+500,Offset vertical para flancos,MUL,OFS_FL,-1,V_OFFSET_FL,,,,V
+510,Generador en alta impedancia (entrada de 1 Mohm),GEN_LOAD,CH1,INF,,,,,
+520,Cuadrada de 1 kHz y 3 Vpp con 1.5 V de offset,GEN_APPLY,SQU,F_SET,A_SET,OFS_SET,,,
+530,Ciclo de trabajo 50 %,GEN_DUTY,CH1,50,,,,,
+540,Frecuencia configurada,GEN_READ,CH1,FREQ,G_FREQ,,F_SET,F_SET,Hz
+550,Amplitud configurada,GEN_READ,CH1,AMPL,G_AMPL,,A_SET,A_SET,Vpp
+560,Offset configurado,GEN_READ,CH1,OFFSET,G_OFFSET,,OFS_SET,OFS_SET,V
+570,Ciclo de trabajo configurado,GEN_READ,CH1,DUTY,G_DUTY,,50,50,%
+580,Verificar configuracion del generador,GEN_CHECK_ERRORS,,,,,,,
+590,Encender salida CH1,GEN_OUTPUT,CH1,ON,,,,,
+600,Sin sonda: atenuacion 1X,OSC_PROBE,CHAN1,1,,,,,
+610,Acoplamiento DC,OSC_COUPLING,CHAN1,DC,,,,,
+620,Sin limite de banda,OSC_BWLIMIT,CHAN1,OFF,,,,,
+630,Escala vertical,OSC_VSCALE,CHAN1,V_DIV,,,,,
+640,Offset vertical,OSC_VOFFSET,CHAN1,V_OFFSET,,,,,
+650,Base de tiempo 200 us/div,OSC_TIMESCALE,T_DIV,,,,,,
+660,Disparo centrado en pantalla,OSC_TIMEOFFSET,0,,,,,,
+670,Fuente de disparo CH1,OSC_TRIG_SOURCE,CHAN1,,,,,,
+680,Nivel de disparo (50 %),OSC_TRIG_LEVEL,OFS_SET,,,,,,
+690,Disparo en flanco ascendente,OSC_SLOPE,POS,,,,,,
+700,Adquisicion normal,OSC_ACQUIRE,NORMAL,,,,,,
+710,Verificar configuracion del osciloscopio,OSC_CHECK_ERRORS,,,,,,,
+720,Iniciar adquisicion,OSC_RUN,,,,,,,
+730,Estabilizar senal,WAIT,1,,,,,,
+740,Frecuencia con contador,OSC_MEASURE,FREQ_CNT,CHAN1,F_CNT,,F_MIN,F_MAX,Hz
+750,Desvio de frecuencia,COMP,F_CNT,F_SET,DF,,,,Hz
+760,Desvio relativo,DIV,DF,F_SET,DF_REL,,,,
+770,Desvio de frecuencia en ppm,MUL,DF_REL,1000000,DF_PPM,,,,ppm
+780,Promediar 16 adquisiciones,OSC_ACQUIRE,AVERAGE,16,,,,,
+790,Estabilizar promedio,WAIT,2,,,,,,
+800,Congelar captura,OSC_STOP,,,,,,,
+810,Periodo,OSC_MEASURE,PERIOD,CHAN1,T,,,,s
+820,Ancho de pulso positivo,OSC_MEASURE,PWIDTH,CHAN1,T_ALTO,,,,s
+830,Ciclo de trabajo (calculado),DIV,T_ALTO,T,DUTY_REL,,,,
+840,Ciclo de trabajo en %,MUL,DUTY_REL,100,DUTY_PCT,,D_MIN,D_MAX,%
+850,Nivel alto,OSC_MEASURE,VTOP,CHAN1,V_TOP,,,,V
+860,Nivel bajo,OSC_MEASURE,VBASE,CHAN1,V_BASE,,,,V
+870,Amplitud,OSC_MEASURE,VAMP,CHAN1,V_AMP,,A_MIN,A_MAX,V
+880,Suma de niveles,SUM,V_TOP,V_BASE,V_SUMA,,,,V
+890,Offset medido (nivel medio),DIV,V_SUMA,2,OFS_MED,,O_MIN,O_MAX,V
+900,Captura de la senal de 1 kHz,OSC_SCREENSHOT,,,,,,,
+910,Reanudar adquisicion,OSC_RUN,,,,,,,
+920,Frecuencia para flancos,GEN_FREQ,CH1,F_FL,,,,,
+930,Amplitud para flancos,GEN_AMPL,CH1,A_FL,,,,,
+940,Offset para flancos,GEN_OFFSET,CH1,OFS_FL,,,,,
+950,Amplitud configurada para flancos,GEN_READ,CH1,AMPL,G_AMPL_FL,,A_FL,A_FL,Vpp
+960,Verificar cambio de configuracion,GEN_CHECK_ERRORS,,,,,,,
+970,Escala vertical para flancos,OSC_VSCALE,CHAN1,V_DIV_FL,,,,,
+980,Offset vertical para flancos,OSC_VOFFSET,CHAN1,V_OFFSET_FL,,,,,
+990,Nivel de disparo para flancos (50 %),OSC_TRIG_LEVEL,OFS_FL,,,,,,
+1000,Base de tiempo 20 ns/div,OSC_TIMESCALE,T_DIV_FL,,,,,,
+1010,Estabilizar promedio,WAIT,2,,,,,,
+1020,Congelar flanco ascendente,OSC_STOP,,,,,,,
+1030,Tiempo de subida,OSC_MEASURE,RISE,CHAN1,T_SUBIDA,,,T_FLANCO_MAX,s
+1040,Tension maxima del flanco,OSC_MEASURE,VMAX,CHAN1,V_MAX_FL,,,,V
+1050,Nivel alto del flanco,OSC_MEASURE,VTOP,CHAN1,V_TOP_FL,,,,V
+1060,Nivel bajo del flanco,OSC_MEASURE,VBASE,CHAN1,V_BASE_FL,,,,V
+1070,Exceso sobre el nivel alto,COMP,V_MAX_FL,V_TOP_FL,SOBRE_V,,,,V
+1080,Amplitud del flanco,COMP,V_TOP_FL,V_BASE_FL,AMP_FL,,,,V
+1090,Sobrepico relativo,DIV,SOBRE_V,AMP_FL,SOBRE_REL,,,,
+1100,Sobrepico en %,MUL,SOBRE_REL,100,SOBREPICO_PCT,,,SOBREPICO_MAX,%
+1110,Captura del flanco ascendente,OSC_SCREENSHOT,,,,,,,
+1120,Reanudar adquisicion,OSC_RUN,,,,,,,
+1130,Centrar flanco descendente,OSC_SLOPE,NEG,,,,,,
+1140,Estabilizar promedio,WAIT,2,,,,,,
+1150,Congelar flanco descendente,OSC_STOP,,,,,,,
+1160,Tiempo de bajada,OSC_MEASURE,FALL,CHAN1,T_BAJADA,,,T_FLANCO_MAX,s
+1170,Captura del flanco descendente,OSC_SCREENSHOT,,,,,,,
+1180,Apagar salida del generador,GEN_OUTPUT,CH1,OFF,,,,,
+1190,Dejar el osciloscopio en RUN,OSC_RUN,,,,,,,
+1200,Verificar errores del generador,GEN_CHECK_ERRORS,,,,,,,
+1210,Verificar errores del osciloscopio,OSC_CHECK_ERRORS,,,,,,,
+1220,Registrar fin,LOG,"Generador dentro de especificacion: frecuencia, ciclo de trabajo, amplitud, offset, flancos y sobrepico (ver reporte).",,,,,,
+1230,Fin de secuencia,END,,,,,,,

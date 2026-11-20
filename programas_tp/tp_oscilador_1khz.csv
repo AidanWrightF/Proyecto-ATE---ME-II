@@ -1,0 +1,72 @@
+# TP_NAME: Caracterizacion oscilador cuadrado 1 kHz
+# TP_VERSION: 1.1
+# DUT: senal cuadrada unipolar de 0 a V_NOM en CH1, medida con sonda 10X
+# AJUSTE: cambiar F_NOM, V_NOM y T_FLANCO_MAX (lineas 30 a 50); el resto se calcula a partir de ellos
+# FLANCOS: tr estimado 0,8 x 10,5 V / 0,3 V/us = 28 us (slew rate del LM358); limite 50 us (5 % de T); base T_FLANCO_MAX/5 = 10 us/div
+line,name,command,arg1,arg2,arg3,arg4,low,high,unit
+10,Reiniciar osciloscopio,RESET,,,,,,,
+20,Conectar oscilador,TXT,"Conecte la salida del oscilador a CH1 con la sonda en 10X y la pinza de masa a la masa del circuito. Encienda el oscilador y presione OK.",,,,,,
+30,Frecuencia nominal,LOAD,F_NOM,1000,,,,,
+40,Amplitud nominal,LOAD,V_NOM,3,,,,,
+50,Tiempo de flanco maximo (5 % T),LOAD,T_FLANCO_MAX,0.00005,,,,,
+60,Frecuencia minima (-1 %),MUL,F_NOM,0.99,F_MIN,,,,
+70,Frecuencia maxima (+1 %),MUL,F_NOM,1.01,F_MAX,,,,
+80,Amplitud minima (-10 %),MUL,V_NOM,0.9,V_MIN,,,,
+90,Amplitud maxima (+10 %),MUL,V_NOM,1.1,V_MAX,,,,
+100,Escala vertical (senal en 6 div),DIV,V_NOM,6,V_DIV,,,,
+110,Offset vertical (senal centrada),DIV,V_NOM,-2,V_OFFSET,,,,
+120,Nivel de disparo (50 %),DIV,V_NOM,2,V_TRIG,,,,
+125,Base de tiempo para flancos,DIV,T_FLANCO_MAX,5,T_DIV_FLANCO,,,,s
+130,Sonda 10X en CH1,OSC_PROBE,CHAN1,10,,,,,
+140,Acoplamiento DC,OSC_COUPLING,CHAN1,DC,,,,,
+150,Sin limite de banda,OSC_BWLIMIT,CHAN1,OFF,,,,,
+160,Escala vertical,OSC_VSCALE,CHAN1,V_DIV,,,,,
+170,Offset vertical,OSC_VOFFSET,CHAN1,V_OFFSET,,,,,
+180,Base de tiempo 200 us/div,OSC_TIMESCALE,0.0002,,,,,,
+190,Disparo centrado en pantalla,OSC_TIMEOFFSET,0,,,,,,
+200,Fuente de disparo CH1,OSC_TRIG_SOURCE,CHAN1,,,,,,
+210,Nivel de disparo,OSC_TRIG_LEVEL,V_TRIG,,,,,,
+220,Disparo en flanco ascendente,OSC_SLOPE,POS,,,,,,
+230,Adquisicion normal,OSC_ACQUIRE,NORMAL,,,,,,
+240,Verificar configuracion,OSC_CHECK_ERRORS,,,,,,,
+250,Iniciar adquisicion,OSC_RUN,,,,,,,
+260,Estabilizar senal,WAIT,1,,,,,,
+270,Frecuencia con contador,OSC_MEASURE,FREQ_CNT,CHAN1,F_CNT,,F_MIN,F_MAX,Hz
+280,Desvio de frecuencia,COMP,F_CNT,F_NOM,DF,,,,Hz
+290,Error relativo de frecuencia,DIV,DF,F_NOM,ERR_REL,,,,
+300,Error de frecuencia en %,MUL,ERR_REL,100,ERR_PCT,,,,%
+310,Estabilidad (desvio estandar),OSC_MEASURE_STAT,FREQ,CHAN1,F_DESVIO,DEV,,,Hz
+320,Promediar 16 adquisiciones,OSC_ACQUIRE,AVERAGE,16,,,,,
+330,Estabilizar promedio,WAIT,2,,,,,,
+340,Congelar captura,OSC_STOP,,,,,,,
+350,Periodo,OSC_MEASURE,PERIOD,CHAN1,T,,,,s
+360,Ancho de pulso positivo,OSC_MEASURE,PWIDTH,CHAN1,T_ALTO,,,,s
+370,Ciclo de trabajo (calculado),DIV,T_ALTO,T,DUTY_REL,,,,
+380,Ciclo de trabajo en %,MUL,DUTY_REL,100,DUTY_PCT,,45,55,%
+390,Ciclo de trabajo (osciloscopio),OSC_MEASURE,PDUTY,CHAN1,PDUTY,,,,
+400,Tension top,OSC_MEASURE,VTOP,CHAN1,V_TOP,,,,V
+410,Tension base,OSC_MEASURE,VBASE,CHAN1,V_BASE,,,,V
+420,Amplitud,OSC_MEASURE,VAMP,CHAN1,V_AMP,,V_MIN,V_MAX,V
+430,Tension pico a pico,OSC_MEASURE,VPP,CHAN1,V_PP,,,,V
+440,Valor medio,OSC_MEASURE,VAVG,CHAN1,V_MEDIO,,,,V
+450,Valor eficaz,OSC_MEASURE,VRMS,CHAN1,V_RMS,,,,V
+460,Sobrepico,OSC_MEASURE,OVERSHOOT,CHAN1,SOBREPICO,,,,
+470,Presubida,OSC_MEASURE,PRESHOOT,CHAN1,PRESUBIDA,,,,
+480,Captura del periodo completo,OSC_SCREENSHOT,,,,,,,
+490,Reanudar adquisicion,OSC_RUN,,,,,,,
+500,Base de tiempo para flancos,OSC_TIMESCALE,T_DIV_FLANCO,,,,,,
+510,Centrar flanco ascendente,OSC_SLOPE,POS,,,,,,
+520,Estabilizar promedio,WAIT,2,,,,,,
+530,Congelar flanco ascendente,OSC_STOP,,,,,,,
+540,Tiempo de subida,OSC_MEASURE,RISE,CHAN1,T_SUBIDA,,,T_FLANCO_MAX,s
+550,Captura del flanco ascendente,OSC_SCREENSHOT,,,,,,,
+560,Reanudar adquisicion,OSC_RUN,,,,,,,
+570,Centrar flanco descendente,OSC_SLOPE,NEG,,,,,,
+580,Estabilizar promedio,WAIT,2,,,,,,
+590,Congelar flanco descendente,OSC_STOP,,,,,,,
+600,Tiempo de bajada,OSC_MEASURE,FALL,CHAN1,T_BAJADA,,,T_FLANCO_MAX,s
+610,Captura del flanco descendente,OSC_SCREENSHOT,,,,,,,
+620,Dejar el osciloscopio en RUN,OSC_RUN,,,,,,,
+630,Verificar errores del equipo,OSC_CHECK_ERRORS,,,,,,,
+640,Registrar fin,LOG,"Caracterizacion completa: ver frecuencia, estabilidad, ciclo de trabajo, niveles, amplitud y flancos en el reporte.",,,,,,
+650,Fin de secuencia,END,,,,,,,

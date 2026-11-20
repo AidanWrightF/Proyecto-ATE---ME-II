@@ -1,6 +1,8 @@
-# Python cache
 __pycache__/
 
-# Reportes generados en cada ejecucion
-reports/
+# Reportes generados en cada ejecución
+reportes/
 
+# Material de la entrega que no va al repositorio
+/Command Table/
+/proyecto documentación/
